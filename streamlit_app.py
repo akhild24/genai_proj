@@ -22,7 +22,7 @@ def load_secret(name: str, default: str = "") -> str:
 
 
 for setting in ("GEMINI_API_KEY", "GEMINI_MODEL"):
-    value = load_secret(setting, "gemini-2.5-flash" if setting == "GEMINI_MODEL" else "")
+    value = load_secret(setting, "gemini-3.8-flash" if setting == "GEMINI_MODEL" else "")
     if value:
         os.environ[setting] = value
 
