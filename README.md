@@ -144,4 +144,19 @@ backend\.venv\Scripts\python.exe -m pytest
 
 ## Deployment
 
-Deployment is not automatic: you need accounts with your chosen frontend and backend hosting providers. Deploy the frontend as a static Vite site and the backend as an ASGI service (`uvicorn app.main:app --host 0.0.0.0 --port $PORT`). Set `VITE_API_URL` to the deployed backend URL at frontend build time. Configure `GEMINI_API_KEY`, `GEMINI_MODEL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and `FRONTEND_ORIGIN` as backend environment variables/secrets. Configure `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` as frontend build variables. Apply the SQL schema and add the production frontend URL to Supabase Auth's Site URL/redirect allow list. Use HTTPS, restrict CORS to the real frontend origin, and keep server secrets in the hosting provider's secret manager.
+### Simplest option: Streamlit Community Cloud
+
+This repository includes a simplified Streamlit app that reuses the existing Gemini itinerary generator. It does not need Supabase, a separate API host, or the database schema. It does not include sign-in or cloud-saved trips; users can download an itinerary as JSON.
+
+1. Push the repository to GitHub.
+2. In [Streamlit Community Cloud](https://share.streamlit.io/), choose **Create app**, select this repository and branch, and set **Main file path** to `streamlit_app.py`.
+3. In the app's **Settings → Secrets**, add:
+
+   ```toml
+   GEMINI_API_KEY = "your-Gemini-API-key"
+   GEMINI_MODEL = "gemini-2.5-flash"
+   ```
+
+4. Deploy the app and open the URL Streamlit provides.
+
+Keep the Gemini key in Streamlit secrets; do not commit it to GitHub. The original React/FastAPI app remains available for local development and for a separate, more involved deployment.
