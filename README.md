@@ -57,7 +57,7 @@ Open the local URL printed by Streamlit, usually `http://localhost:8501`.
 
 ## Troubleshooting
 
-- **HTTP 400 from Gemini:** Set `GEMINI_MODEL` to `gemini-3.8-flash` in Streamlit **Settings → Secrets**, save, and reboot the app. Check the Streamlit app logs for the provider's detailed error if the request still fails; a 400 can also indicate a request/schema issue rather than an invalid model.
+- **HTTP 400 from Gemini:** Update the app to the latest commit and reboot it. The app sends Gemini a simplified JSON schema and validates the response locally. If the error persists, check the Streamlit deployment logs for the provider's detailed error; HTTP 400 can indicate an invalid request or schema, not just an unavailable model.
 - **Model unavailable or not found:** Check that the model ID is spelled exactly as above and is available to your Google AI Studio project and region.
 - **Quota or rate limit:** Review your Gemini project's limits and billing/availability in Google AI Studio.
 - **App does not see a secret:** Confirm the secrets are valid TOML, saved under the deployed app's settings, and use the exact `GEMINI_API_KEY` spelling.

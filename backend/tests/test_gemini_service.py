@@ -96,7 +96,30 @@ def test_generate_itinerary_uses_gemini_structured_output(monkeypatch: pytest.Mo
     assert fake_client.models.request["model"] == "gemini-test-model"
     config = fake_client.models.request["config"]
     assert config.response_mime_type == "application/json"
-    assert config.response_schema is ItineraryResponse
+    assert config.response_schema["type"] == "object"
+    assert config.response_schema["properties"]["itinerary"]["items"]["properties"]["date"] == {
+        "type": "string"
+    }
+
+
+def test_gemini_response_schema_omits_pydantic_constraints() -> None:
+    schema = services._gemini_response_schema(ItineraryResponse)
+    serialized_schema = json.dumps(schema)
+
+    assert '"format"' not in serialized_schema
+    assert '"minLength"' not in serialized_schema
+    assert '"maxLength"' not in serialized_schema
+    assert '"minItems"' not in serialized_schema
+    assert '"maxItems"' not in serialized_schema
+    assert schema["properties"]["itinerary"]["items"]["properties"]["activities"]["items"][
+        "properties"
+    ]["category"]["enum"] == [
+        "Dining",
+        "Sightseeing",
+        "Transport",
+        "Accommodation",
+        "Experience",
+    ]
 
 
 def test_generate_itinerary_rejects_malformed_json(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -137,7 +160,7 @@ def test_generate_itinerary_reports_quota_errors_without_provider_secrets(
 @pytest.mark.parametrize(
     ("provider_code", "expected_detail"),
     [
-        (400, "supported model"),
+        (400, "HTTP 400"),
         (401, "API key"),
         (403, "denied access"),
         (404, "could not find the configured model"),
@@ -147,6 +170,7 @@ def test_generate_itinerary_classifies_gemini_client_errors(
     monkeypatch: pytest.MonkeyPatch,
     provider_code: int,
     expected_detail: str,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     monkeypatch.setattr(services, "get_settings", configured_settings)
     provider_error = errors.APIError(
@@ -164,6 +188,7 @@ def test_generate_itinerary_classifies_gemini_client_errors(
     assert raised.value.status_code == 502
     assert expected_detail.lower() in raised.value.detail.lower()
     assert "private provider response" not in raised.value.detail
+    assert "private provider response" in caplog.text
 
 
 def test_generated_day_is_fixed_to_requested_trip_date(monkeypatch: pytest.MonkeyPatch) -> None:

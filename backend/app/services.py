@@ -45,6 +45,30 @@ def _trip_prompt(trip: TripRequest, day_number: int | None = None) -> str:
     )
 
 
+def _gemini_response_schema(model: type[DayItinerary] | type[ItineraryResponse]) -> dict[str, Any]:
+    pydantic_schema = model.model_json_schema()
+    definitions = pydantic_schema.get("$defs", {})
+    supported_keys = {"type", "properties", "required", "items", "enum"}
+
+    def simplify(schema: dict[str, Any]) -> dict[str, Any]:
+        reference = schema.get("$ref")
+        if reference:
+            definition_name = reference.rsplit("/", 1)[-1]
+            return simplify(definitions[definition_name])
+
+        result = {key: value for key, value in schema.items() if key in supported_keys}
+        if "properties" in result:
+            result["properties"] = {
+                name: simplify(property_schema)
+                for name, property_schema in result["properties"].items()
+            }
+        if "items" in result:
+            result["items"] = simplify(result["items"])
+        return result
+
+    return simplify(pydantic_schema)
+
+
 async def generate_itinerary(
     trip: TripRequest, day_number: int | None = None
 ) -> ItineraryResponse | DayItinerary:
@@ -55,7 +79,7 @@ async def generate_itinerary(
             detail="The itinerary service is not configured. Add GEMINI_API_KEY to backend\\.env.",
         )
 
-    response_schema = DayItinerary if day_number is not None else ItineraryResponse
+    response_model = DayItinerary if day_number is not None else ItineraryResponse
     try:
         async with genai.Client(api_key=settings.gemini_api_key).aio as client:
             response = await client.models.generate_content(
@@ -64,16 +88,18 @@ async def generate_itinerary(
                 config=types.GenerateContentConfig(
                     system_instruction=_system_prompt(),
                     response_mime_type="application/json",
-                    response_schema=response_schema,
+                    response_schema=_gemini_response_schema(response_model),
                     temperature=0.7,
                 ),
             )
     except errors.APIError as exc:
         provider_status = getattr(exc, "code", None)
+        provider_message = getattr(exc, "message", None) or "No provider message returned."
         logger.warning(
-            "Gemini API request failed with HTTP %s (provider status: %s)",
+            "Gemini API request failed with HTTP %s (provider status: %s): %s",
             provider_status,
             getattr(exc, "status", None),
+            provider_message[:1000],
         )
         if provider_status == 429:
             detail = (
@@ -82,8 +108,8 @@ async def generate_itinerary(
             )
         elif provider_status == 400:
             detail = (
-                "Gemini rejected the request (HTTP 400). Check GEMINI_MODEL is "
-                "a supported model and accepts the itinerary JSON schema."
+                "Gemini rejected the generation request (HTTP 400). Check the "
+                "Streamlit deployment logs for the provider's error details."
             )
         elif provider_status == 401:
             detail = "Gemini rejected the API key (HTTP 401). Replace GEMINI_API_KEY with a valid Google AI Studio key."
@@ -95,7 +121,7 @@ async def generate_itinerary(
         elif provider_status == 404:
             detail = (
                 "Gemini could not find the configured model (HTTP 404). "
-                "Set GEMINI_MODEL to a supported model such as gemini-2.5-flash."
+                "Set GEMINI_MODEL to a supported model such as gemini-3.8-flash."
             )
         elif isinstance(provider_status, int) and provider_status >= 500:
             detail = "Gemini is temporarily unavailable. Try again shortly."
